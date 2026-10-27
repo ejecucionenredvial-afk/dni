@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Lector de DNI</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--ink:#12212b;--mut:#5b6b76;--brand:#0f766e;--brand2:#115e59;--line:#dbe2e7;--warn:#b45309;--err:#b91c1c;--ok:#15803d}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:70px}
+header{background:var(--brand);color:#fff;padding:12px 14px;position:sticky;top:0;z-index:5}
+header h1{margin:0;font-size:18px}
+header small{opacity:.85;display:block;margin-top:2px}
+.tabs{display:flex;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:58px;z-index:4}
+.tabs button{flex:1;padding:12px;border:0;background:none;font:600 14px inherit;color:var(--mut);border-bottom:3px solid transparent}
+.tabs button.on{color:var(--brand);border-color:var(--brand)}
+main{padding:12px;max-width:1100px;margin:auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--bg);border-radius:10px;padding:8px;text-align:center}
+.stat b{display:block;font-size:20px}.stat span{font-size:11px;color:var(--mut)}
+.bar{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;width:0;background:var(--brand);transition:width .3s}
+button.btn,label.btn{display:inline-block;border:0;border-radius:10px;padding:11px 14px;font:600 14px inherit;background:var(--brand);color:#fff;cursor:pointer}
+button.btn.sec{background:#e2e8ec;color:var(--ink)}
+button.btn.dan{background:#fee2e2;color:var(--err)}
+button.btn:disabled{opacity:.45}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.muted{color:var(--mut);font-size:13px}
+.priv{background:#ecfdf5;border-color:#a7f3d0;font-size:13px}
+.resume{background:#fffbeb;border-color:#fde68a}
+select,input[type=search]{padding:10px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff}
+input[type=search]{flex:1;min-width:140px}
+.ph{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.ph img,.ph .noimg{width:48px;height:48px;object-fit:cover;border-radius:8px;background:#e2e8ec;flex:none;text-align:center;line-height:48px}
+.phi{min-width:0}.phi b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.phi span{font-size:12px;color:var(--mut)}
+.ph.err .phi span{color:var(--err)}.ph.warn .phi span{color:var(--warn)}.ph.done .phi span{color:var(--ok)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:7px 12px;font:600 13px inherit;color:var(--mut)}
+.chips button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.tw{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:780px}
+th{background:#eef2f5;text-align:left;font-size:12px;padding:8px;position:sticky;top:0}
+td{padding:4px;border-top:1px solid var(--line);vertical-align:middle}
+td input{width:100%;border:1px solid transparent;border-radius:6px;padding:8px;font:inherit;background:transparent}
+td input:focus{border-color:var(--brand);background:#fff;outline:0}
+td input.flag{background:#fef2f2;border-color:#fecaca}
+td input.flag::placeholder{color:var(--err);font-weight:700}
+th:nth-child(1){width:30%}th:nth-child(2){width:13%}th:nth-child(3){width:34%}th:nth-child(4){width:13%}
+td.st{font-size:12px;white-space:nowrap}
+.b{display:inline-block;border-radius:12px;padding:3px 9px;font-weight:700;font-size:12px}
+.b.ok,.b.verificado{background:#dcfce7;color:var(--ok)}.b.revisar{background:#fee2e2;color:var(--err)}.b.dup{background:#fef3c7;color:var(--warn);margin-top:3px}
+td.act{white-space:nowrap}td.act button{border:0;background:#eef2f5;border-radius:8px;padding:8px;margin-left:3px;font-size:15px}
+#viewer{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:20;display:none;overflow:auto;padding:12px}
+#viewer.open{display:block}#viewer .muted{color:#cbd5e1}
+#viewer figure{margin:12px 0}#viewer img{width:100%;border-radius:8px;display:block}#viewer img.zoom{width:250%;max-width:none}
+#viewer figcaption{color:#cbd5e1;font-size:12px;margin-top:4px}
+#viewer-close{position:sticky;top:0;float:right;z-index:2;background:#fff;border:0;border-radius:50%;width:40px;height:40px;font-size:20px}
+#toast{position:fixed;left:12px;right:12px;bottom:14px;background:#12212b;color:#fff;padding:12px 14px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:30;font-size:14px}
+#toast.show{opacity:1}
+details summary{cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>Lector de DNI</h1>
+  <small>Todo se procesa en este teléfono · <span id="saved">sin guardar aún</span></small>
+</header>
+<nav class="tabs">
+  <button id="tab-import" class="on">1 · Importar y procesar</button>
+  <button id="tab-res">2 · Resultados<span id="tab-res-count"></span></button>
+</nav>
+
+<main>
+<section id="pane-import">
+  <div class="card priv">
+    🔒 <b>Privacidad:</b> las fotos <b>no se envían a ningún servidor</b>. La lectura (código del DNI + OCR) se hace dentro del teléfono.
+    Solo se descargan, una vez, los programas de lectura desde <i>cdn.jsdelivr.net</i> (sin enviar tus fotos). Los datos quedan en el almacenamiento privado de este navegador.
+  </div>
+
+  <div class="card resume" id="resume" hidden>
+    <b>Trabajo pendiente</b>
+    <div id="resume-text" class="muted"></div>
+    <div class="row"><button class="btn" id="btn-resume">Continuar ahora</button><button class="btn sec" id="btn-resume-no">Más tarde</button></div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div class="stat"><b id="s-total">0</b><span>Imágenes importadas</span></div>
+      <div class="stat"><b id="s-done">0</b><span>Procesadas</span></div>
+      <div class="stat"><b id="s-dni">0</b><span>DNI detectados</span></div>
+      <div class="stat"><b id="s-review">0</b><span>Por revisar</span></div>
+      <div class="stat"><b id="s-err">0</b><span>Errores</span></div>
+      <div class="stat"><b id="s-pct">0%</b><span>Progreso</span></div>
+    </div>
+    <div class="bar"><i id="bar"></i></div>
+    <div id="status" class="muted" style="margin-top:8px;min-height:18px"></div>
+  </div>
+
+  <div class="card">
+    <b>Importar fotos</b>
+    <p class="muted" style="margin:4px 0 0">Tocá <i>Elegir fotos</i> y marcá varias (podés elegir desde Google Fotos en el selector de Android). Con la app instalada también aparece en <i>Compartir → Lector de DNI</i> desde Google Fotos. Recomendado: importar de a 100–150.</p>
+    <input id="file" type="file" accept="image/*" multiple hidden>
+    <div class="row"><button class="btn" id="btn-pick">📷 Elegir fotos</button></div>
+    <div class="row">
+      <label class="muted">Tanda:
+        <select id="batch"><option value="25">25 fotos</option><option value="50">50 fotos</option><option value="100">100 fotos</option><option value="0" selected>Todas</option></select>
+      </label>
+      <button class="btn" id="btn-start" disabled>Procesar</button>
+      <button class="btn sec" id="btn-pause" disabled>⏸ Pausar</button>
+      <button class="btn sec" id="btn-retry" disabled>Reintentar errores</button>
+    </div>
+    <details style="margin-top:10px"><summary>Opciones</summary>
+      <p><label><input type="checkbox" id="opt-fronts"> Buscar también DNI sin código (frentes) en fotos que ya tienen código <span class="muted">— más lento</span></label></p>
+      <p><label><input type="checkbox" id="opt-keep-orig"> Conservar la foto original completa en el teléfono <span class="muted">— usa mucho espacio; por defecto se guarda solo una copia reducida para revisar</span></label></p>
+    </details>
+  </div>
+
+  <div class="card"><b>Fotos</b><div id="photo-list"></div></div>
+</section>
+
+<section id="pane-res" hidden>
+  <div class="card">
+    <div class="row" style="margin-top:0">
+      <input type="search" id="q" placeholder="Buscar por nombre o DNI">
+      <button class="btn sec" id="btn-sort">Nombre A→Z</button>
+    </div>
+    <div class="row chips">
+      <button data-filter="todos" class="on">Todos</button>
+      <button data-filter="revisar">Por revisar</button>
+      <button data-filter="dup">Posibles duplicados</button>
+    </div>
+    <div class="muted" id="count-line" style="margin-top:8px"></div>
+  </div>
+  <div class="tw"><table>
+    <thead><tr><th>Nombre completo</th><th>DNI</th><th>Dirección</th><th>Estado</th><th></th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+
+  <div class="card" style="margin-top:12px">
+    <b>Exportar y guardar</b>
+    <div class="row">
+      <button class="btn" id="btn-xlsx">⬇ Excel (.xlsx)</button>
+      <button class="btn" id="btn-csv">⬇ CSV</button>
+    </div>
+    <p class="muted">El archivo trae solo: Nombre completo, DNI, Dirección y Estado. Sin fotos. (El CSV usa “;” y abre bien en Excel en español.)</p>
+    <div class="row">
+      <button class="btn sec" id="btn-backup">Copia de seguridad</button>
+      <button class="btn sec" id="btn-restore">Importar copia</button>
+      <label class="muted"><input type="checkbox" id="opt-backup-photos"> incluir fotos reducidas</label>
+    </div>
+    <input id="file-restore" type="file" accept="application/json,.json" hidden>
+    <div class="row">
+      <button class="btn dan" id="btn-del-photos">Borrar fotos (conserva datos)</button>
+      <button class="btn dan" id="btn-del-all">Borrar todo</button>
+    </div>
+  </div>
+</section>
+</main>
+
+<div id="viewer"><button id="viewer-close" aria-label="Cerrar">✕</button><div id="viewer-body"></div></div>
+<div id="toast"></div>
+
+<script src="parser.js"></script>
+<script src="xlsxmin.js"></script>
+<script src="db.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
