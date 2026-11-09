@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1b3a">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Planillas · Cristina Libre</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Barlow:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#0b1b3a;--card:#13264d;--line:#24407a;--volt:#d7ff00;--tx:#eef3ff;--mut:#9fb2d9;--err:#ff6b6b;--ok:#4be39a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Barlow,system-ui,sans-serif;padding:env(safe-area-inset-top) 12px 90px}
+h1{font-family:'Barlow Condensed',sans-serif;font-size:26px;letter-spacing:.5px;margin:14px 0 2px;text-transform:uppercase}
+h1 span{color:var(--volt)}
+.sub{color:var(--mut);font-size:13px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,input,textarea,button{font:inherit;color:var(--tx)}
+select,input,textarea{background:#0d1f45;border:1px solid var(--line);border-radius:8px;padding:8px;min-width:0}
+button{border:0;border-radius:10px;padding:10px 14px;background:var(--line);font-weight:600;cursor:pointer}
+button.v{background:var(--volt);color:#0b1b3a}
+button.danger{background:#5a2330}
+#mic{width:100%;font-family:'Barlow Condensed',sans-serif;font-size:26px;text-transform:uppercase;padding:16px;border-radius:14px;background:var(--volt);color:#0b1b3a}
+#mic.on{background:var(--err);color:#fff;animation:p 1.2s infinite}
+@keyframes p{50%{opacity:.7}}
+#guide{font-family:'Barlow Condensed',sans-serif;font-size:22px;margin:10px 0 6px}
+#guide b{color:var(--volt)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:13px;color:var(--mut)}
+.chip.cur{border-color:var(--volt);color:var(--volt)}
+.chip.done{color:var(--ok);border-color:var(--ok)}
+#live{min-height:20px;color:var(--mut);font-style:italic;margin-top:8px;font-size:14px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;color:var(--volt);text-align:left;padding:4px;white-space:nowrap}
+td{padding:3px}
+td input{width:100%;min-width:90px;padding:5px}
+td.n input{min-width:150px}td.d input{min-width:70px}td.s{text-align:center;white-space:nowrap}
+.cat{color:var(--volt);font-weight:700}
+#toast{position:fixed;left:12px;right:12px;bottom:14px;background:#000d;border:1px solid var(--line);padding:10px 12px;border-radius:10px;display:none;z-index:9}
+details summary{cursor:pointer;color:var(--mut)}
+label{font-size:13px;color:var(--mut);display:block;margin:8px 0 3px}
+</style>
+</head>
+<body>
+<h1>Planillas <span>Cristina Libre</span></h1>
+<div class="sub" id="stats"></div>
+
+<div class="card">
+  <button id="mic">🎤 Empezar dictado</button>
+  <div id="guide"></div>
+  <div class="chips" id="chips"></div>
+  <div id="live"></div>
+  <div class="row" style="margin-top:10px">
+    <input id="manual" placeholder="o escribí acá y Enter" style="flex:1" enterkeyhint="send">
+    <button id="okm" class="v">OK</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button id="back">↩ Atrás</button>
+    <button id="cancel">Cancelar jugador</button>
+    <button id="next" class="v">Siguiente equipo</button>
+  </div>
+  <div class="sub" style="margin:8px 0 0">Comandos de voz: <b>siguiente equipo</b> · <b>atrás</b> · <b>cancelar jugador</b> · <b>borrar jugador</b> (borra el último)</div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <select id="teamSel" style="flex:1"></select>
+    <input id="teamName" placeholder="Nombre del equipo" style="flex:1">
+  </div>
+  <div class="tw" style="margin-top:10px">
+    <table>
+      <thead><tr><th>#</th><th>Nombre</th><th>Dirección</th><th>Localidad</th><th>Nacimiento</th><th>DNI</th><th>Edad</th><th>Cat.</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <details>
+    <summary>⚙️ Cálculo de categoría</summary>
+    <label>Forma de calcular la edad</label>
+    <select id="mode">
+      <option value="cumplida">Edad cumplida a la fecha de referencia</option>
+      <option value="anio">Por año (año de referencia − año de nacimiento)</option>
+    </select>
+    <label>Fecha de referencia (vacío = hoy)</label>
+    <input type="date" id="ref">
+    <label>Categorías (una por línea, formato <code>edad mínima:nombre</code>)</label>
+    <textarea id="rules" rows="7" style="width:100%"></textarea>
+  </details>
+</div>
+
+<div class="row">
+  <button id="export" class="v" style="flex:1">⬇ Exportar Excel (una hoja por equipo)</button>
+  <button id="reset" class="danger">Borrar todo</button>
+</div>
+<div id="toast"></div>
+
+<script>
+const FIELDS=[['nombre','Nombre y apellido'],['direccion','Dirección'],['localidad','Localidad'],['nacimiento','Fecha de nacimiento'],['dni','DNI']];
+const KEY='cl_planillas_v1';
+const DEF_RULES='35:+35\n40:+40\n45:+45\n50:+50\n55:+55\n60:+60';
+let S={teams:[],cur:-1,cfg:{mode:'cumplida',ref:'',rules:DEF_RULES}};
+let draft={},fi=0,listening=false,rec=null;
+const $=id=>document.getElementById(id);
+
+try{const x=JSON.parse(localStorage.getItem(KEY));if(x&&x.teams){S=x;S.cfg=Object.assign({mode:'cumplida',ref:'',rules:DEF_RULES},S.cfg)}}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+function toast(m,ms=2600){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',ms)}
+
+/* ---------- utilidades de texto / números en español ---------- */
+const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s\/\-.]/g,' ').replace(/\s+/g,' ').trim();
+const tc=s=>s.trim().replace(/[.,;]+$/,'').toLowerCase().replace(/(^|[\s\-\/(])(\p{L})/gu,(m,a,b)=>a+b.toUpperCase());
+const NUM={cero:0,un:1,uno:1,una:1,primero:1,dos:2,tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho:8,nueve:9,diez:10,once:11,doce:12,trece:13,catorce:14,quince:15,dieciseis:16,diecisiete:17,dieciocho:18,diecinueve:19,veinte:20,veintiuno:21,veintiun:21,veintidos:22,veintitres:23,veinticuatro:24,veinticinco:25,veintiseis:26,veintisiete:27,veintiocho:28,veintinueve:29,treinta:30,cuarenta:40,cincuenta:50,sesenta:60,setenta:70,ochenta:80,noventa:90};
+const HUND={cien:100,ciento:100,doscientos:200,trescientos:300,cuatrocientos:400,quinientos:500,seiscientos:600,setecientos:700,ochocientos:800,novecientos:900};
+const MESES={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+
+function wordsToNum(tok){
+  let total=0,cur=0,any=false;
+  for(const t of tok){
+    if(t==='y')continue;
+    if(t==='mil'){total+=(cur||1)*1000;cur=0;any=true}
+    else if(t in HUND){cur+=HUND[t];any=true}
+    else if(t in NUM){cur+=NUM[t];any=true}
+    else return null;
+  }
+  return any?total+cur:null;
+}
+function toNum(arr){
+  if(!arr.length)return null;
+  if(arr.every(a=>/^\d/.test(a))){const d=arr.join('').replace(/\D/g,'');return d?+d:null}
+  return wordsToNum(arr);
+}
+function parseDate(t){
+  const n=norm(t).replace(/\b(de|del|el)\b/g,' ').replace(/\s+/g,' ').trim();
+  const tok=n.split(' ');
+  let d,m,y;
+  const mi=tok.findIndex(x=>MESES[x]);
+  if(mi>=0){m=MESES[tok[mi]];d=toNum(tok.slice(0,mi));y=toNum(tok.slice(mi+1))}
+  else{
+    const g=n.match(/\d+/g)||[];
+    if(g.length>=3){d=+g[0];m=+g[1];y=+g[2]}
+    else if(g.length===1&&g[0].length>=6){const s=g[0];d=+s.slice(0,2);m=+s.slice(2,4);y=+s.slice(4)}
+    else return null;
+  }
+  if(d==null||y==null||!m)return null;
+  if(y<100)y+=y>(new Date().getFullYear()%100)?1900:2000;
+  const dt=new Date(Date.UTC(y,m-1,d));
+  if(y<1900||y>new Date().getFullYear()||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)return null;
+  return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function parseDni(t){
+  const tok=norm(t).split(' ');let out='';
+  for(let i=0;i<tok.length;i++){
+    const w=tok[i];
+    if(/\d/.test(w)){out+=w.replace(/\D/g,'');continue}
+    if(w in NUM){
+      const v=NUM[w];
+      if(v>=30&&tok[i+1]==='y'&&tok[i+2] in NUM&&NUM[tok[i+2]]<10){out+=String(v+NUM[tok[i+2]]);i+=2}
+      else out+=String(v);
+    }
+  }
+  return out.length>=7&&out.length<=8?out:null;
+}
+const fmtDate=iso=>{if(!iso)return '';const [y,m,d]=iso.split('-');return d+'/'+m+'/'+y};
+
+/* ---------- categoría ---------- */
+function refDate(){const r=S.cfg.ref;return r?new Date(r+'T00:00:00'):new Date()}
+function ageOf(iso){
+  if(!iso)return '';
+  const [y,m,d]=iso.split('-').map(Number),r=refDate();
+  let a=r.getFullYear()-y;
+  if(S.cfg.mode==='cumplida'&&(r.getMonth()+1<m||(r.getMonth()+1===m&&r.getDate()<d)))a--;
+  return a;
+}
+function rules(){
+  return S.cfg.rules.split('\n').map(l=>l.split(':')).filter(p=>p.length>=2&&!isNaN(parseInt(p[0])))
+    .map(p=>[parseInt(p[0]),p.slice(1).join(':').trim()]).sort((a,b)=>a[0]-b[0]);
+}
+function catOf(age){
+  if(age==='')return '';
+  const r=rules();if(!r.length)return '';
+  let c=null;for(const x of r)if(age>=x[0])c=x[1];
+  return c||('Menor de '+r[0][0]);
+}
+
+/* ---------- flujo de dictado ---------- */
+const team=()=>S.teams[S.cur];
+function setTeam(name){
+  name=tc(name.replace(/^\s*equipo\s+/i,''));
+  if(!name)return;
+  let i=S.teams.findIndex(t=>norm(t.name)===norm(name));
+  if(i<0){S.teams.push({name,players:[]});i=S.teams.length-1}
+  S.cur=i;draft={};fi=0;
+}
+function nextTeam(){S.cur=-1;draft={};fi=0;save();render();toast('Dictá el nombre del próximo equipo')}
+function back(){
+  if(fi>0){fi--;delete draft[FIELDS[fi][0]]}
+  else if(team()&&team().players.length){const p=team().players.pop();draft=Object.assign({},p);fi=4;delete draft.dni;toast('Volvió al último jugador, repetí el DNI')}
+  save();render();
+}
+function handle(text){
+  const t=text.trim();if(!t)return;
+  const c=norm(t).replace(/[.\/\-]/g,' ').replace(/\s+/g,' ').trim();
+  if(/^(siguiente|proximo|nuevo) equipo$|^equipo (siguiente|nuevo)$/.test(c))return nextTeam();
+  if(/^(atras|volver|corregir)$/.test(c))return back();
+  if(/^cancelar( jugador)?$/.test(c)){draft={};fi=0;render();return toast('Jugador cancelado')}
+  if(/^borrar (el )?(ultimo )?jugador$/.test(c)){if(team()&&team().players.length){team().players.pop();save();render();toast('Último jugador borrado')}return}
+  if(S.cur<0){setTeam(t);save();render();toast('Equipo: '+team().name);return}
+  const f=FIELDS[fi][0];let v;
+  if(f==='nacimiento'){v=parseDate(t);if(!v){toast('No entendí la fecha: "'+t+'". Repetila.');return}}
+  else if(f==='dni'){v=parseDni(t);if(!v){toast('DNI inválido ("'+t+'"): tiene que tener 7 u 8 dígitos. Repetilo.');return}}
+  else v=tc(t);
+  draft[f]=v;fi++;
+  if(fi>=FIELDS.length){
+    const dup=S.teams.some(tm=>tm.players.some(p=>p.dni===draft.dni));
+    team().players.push(Object.assign({},draft));
+    draft={};fi=0;
+    if(navigator.vibrate)navigator.vibrate(60);
+    if(dup)toast('⚠ Ese DNI ya está cargado en otro jugador');
+  }
+  save();render();
+}
+
+/* ---------- reconocimiento de voz ---------- */
+function startRec(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Este navegador no soporta dictado. Usá Chrome.');listening=false;ui();return}
+  rec=new SR();rec.lang='es-AR';rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;
+  rec.onresult=e=>{
+    let fin='',int='';
+    for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin+=r[0].transcript;else int+=r[0].transcript}
+    $('live').textContent='🗣 '+(fin||int);
+    if(fin)handle(fin);
+  };
+  rec.onerror=e=>{
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){listening=false;ui();toast('Sin permiso de micrófono (la página tiene que abrirse por https).',5000)}
+  };
+  rec.onend=()=>{if(listening)setTimeout(()=>{try{rec.start()}catch(_){}},150)};
+  try{rec.start()}catch(_){}
+}
+function ui(){const m=$('mic');m.classList.toggle('on',listening);m.textContent=listening?'⏹ Detener dictado':'🎤 Empezar dictado'}
+$('mic').onclick=()=>{
+  if(listening){listening=false;try{rec.stop()}catch(_){}ui();return}
+  listening=true;ui();startRec();
+};
+
+/* ---------- render ---------- */
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function render(){
+  const total=S.teams.reduce((a,t)=>a+t.players.length,0);
+  $('stats').textContent=S.teams.length+' equipos · '+total+' jugadores';
+  $('guide').innerHTML=S.cur<0?'Dictá el <b>EQUIPO</b>':'<b>'+esc(team().name)+'</b> → dictá: <b>'+FIELDS[fi][1]+'</b>';
+  $('chips').innerHTML=S.cur<0?'':FIELDS.map((f,i)=>{
+    const v=draft[f[0]];
+    return '<span class="chip '+(i<fi?'done':i===fi?'cur':'')+'">'+f[1]+(v?': '+esc(f[0]==='nacimiento'?fmtDate(v):v):'')+'</span>';
+  }).join('');
+  $('teamSel').innerHTML='<option value="-1">— nuevo equipo (dictar nombre) —</option>'+S.teams.map((t,i)=>'<option value="'+i+'"'+(i===S.cur?' selected':'')+'>'+esc(t.name)+' ('+t.players.length+')</option>').join('');
+  $('teamSel').value=String(S.cur);
+  $('teamName').value=S.cur>=0?team().name:'';
+  $('teamName').disabled=S.cur<0;
+  const ps=S.cur>=0?team().players:[];
+  $('rows').innerHTML=ps.map((p,i)=>{
+    const a=ageOf(p.nacimiento);
+    const inp=(f,cls)=>'<td class="'+(cls||'')+'"><input data-i="'+i+'" data-f="'+f+'" value="'+esc(p[f])+'"></td>';
+    return '<tr><td>'+(i+1)+'</td>'+inp('nombre','n')+inp('direccion')+inp('localidad')
+      +'<td><input type="date" data-i="'+i+'" data-f="nacimiento" value="'+esc(p.nacimiento)+'"></td>'
+      +inp('dni','d')+'<td class="s">'+a+'</td><td class="s cat">'+esc(catOf(a))+'</td>'
+      +'<td><button data-del="'+i+'" class="danger" style="padding:4px 8px">✕</button></td></tr>';
+  }).join('');
+  $('mode').value=S.cfg.mode;$('ref').value=S.cfg.ref;
+  if(document.activeElement!==$('rules'))$('rules').value=S.cfg.rules;
+}
+
+$('rows').addEventListener('change',e=>{
+  const i=e.target.dataset.i,f=e.target.dataset.f;if(i==null)return;
+  team().players[i][f]=e.target.value.trim();save();render();
+});
+$('rows').addEventListener('click',e=>{
+  const i=e.target.dataset.del;if(i==null)return;
+  if(confirm('¿Borrar a '+(team().players[i].nombre||'este jugador')+'?')){team().players.splice(i,1);save();render()}
+});
+$('teamSel').onchange=e=>{S.cur=+e.target.value;draft={};fi=0;save();render()};
+$('teamName').onchange=e=>{const v=tc(e.target.value);if(v&&team()){team().name=v;save();render()}};
+$('next').onclick=nextTeam;
+$('back').onclick=back;
+$('cancel').onclick=()=>handle('cancelar jugador');
+const sendManual=()=>{const v=$('manual').value;$('manual').value='';handle(v)};
+$('okm').onclick=sendManual;
+$('manual').addEventListener('keydown',e=>{if(e.key==='Enter')sendManual()});
+$('mode').onchange=e=>{S.cfg.mode=e.target.value;save();render()};
+$('ref').onchange=e=>{S.cfg.ref=e.target.value;save();render()};
+$('rules').onchange=e=>{S.cfg.rules=e.target.value;save();render()};
+$('reset').onclick=()=>{if(confirm('¿Borrar TODOS los equipos y jugadores cargados?')){S.teams=[];S.cur=-1;draft={};fi=0;save();render()}};
+
+/* ---------- exportar ---------- */
+$('export').onclick=()=>{
+  const ts=S.teams.filter(t=>t.players.length);
+  if(!ts.length)return toast('No hay jugadores cargados');
+  if(typeof XLSX==='undefined')return toast('No se pudo cargar la librería de Excel (hace falta internet).');
+  const wb=XLSX.utils.book_new(),used=new Set();
+  for(const t of ts){
+    const head=['N°','Apellido y nombre','Dirección','Localidad','Fecha de nacimiento','DNI','Edad','Categoría'];
+    const rows=t.players.map((p,i)=>{
+      const a=ageOf(p.nacimiento);
+      const [y,m,d]=(p.nacimiento||'').split('-').map(Number);
+      return [i+1,p.nombre,p.direccion,p.localidad,p.nacimiento?new Date(Date.UTC(y,m-1,d)):'',p.dni?+p.dni:'',a,catOf(a)];
+    });
+    const ws=XLSX.utils.aoa_to_sheet([head,...rows],{cellDates:true});
+    ws['!cols']=[{wch:4},{wch:28},{wch:28},{wch:18},{wch:18},{wch:12},{wch:7},{wch:14}];
+    rows.forEach((r,i)=>{const c=ws[XLSX.utils.encode_cell({r:i+1,c:4})];if(c&&c.t==='d')c.z='dd/mm/yyyy';const d=ws[XLSX.utils.encode_cell({r:i+1,c:5})];if(d&&d.t==='n')d.z='0'});
+    let nm=t.name.replace(/[\[\]:*?\/\\]/g,' ').slice(0,31).trim()||'Equipo',k=2,base=nm;
+    while(used.has(nm.toLowerCase())){nm=base.slice(0,28)+' '+k++}
+    used.add(nm.toLowerCase());
+    XLSX.utils.book_append_sheet(wb,ws,nm);
+  }
+  XLSX.writeFile(wb,'Planillas_Cristina_Libre.xlsx',{cellDates:true});
+};
+
+render();ui();
+</script>
+</body>
+</html>
